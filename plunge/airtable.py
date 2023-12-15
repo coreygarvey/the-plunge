@@ -5,7 +5,7 @@ import constants as c
 import time
 
 
-at_token = c.AIRTABLE_API_TOKEN
+at_token = c.AIRTABLE_ACCESS_TOKEN
 at_url_base = c.AIRTABLE_API_URL_BASE
 at_base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID
 at_creators_table_id = c.AIRTABLE_CREATORS_TABLE_ID

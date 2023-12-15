@@ -23,7 +23,7 @@ headers = {
 	"X-Accept": "application/json"
 }
 
-def pocket_articles():
+def pocket_articles_to_airtable():
 
 	access_token = get_pocket_access_token()
 	
@@ -388,4 +388,4 @@ def parse_youtube(row, article):
 
 
 if __name__ == "__main__":
-	pocket_articles()
+	pocket_articles_to_airtable()
