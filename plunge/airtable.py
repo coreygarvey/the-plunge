@@ -166,3 +166,39 @@ def build_update_record_for_request(api_update_dict, api_id):
 		"id": api_id,
 		"fields": api_update_dict
 	}
+
+
+def post_airtable_articles(airtable_service, articles_df):
+	# Build empty data object
+	articles_data = {}
+
+	article_post_count = 0
+	length = len(articles_df.index)
+	i = 0
+	j = 10
+	last = False
+	# Loop through groups of 10 articles
+	while last == False:
+		if(j<=length):
+			articles_to_post = articles_df[i:j]
+			if(j == length):
+				last = True
+		else:
+			articles_to_post = articles_df[i:]
+			last = True
+		article_post_count += len(articles_to_post)
+		articles_to_post = articles_to_post.fillna('')
+		# Build request for 10 videos
+		articles_dict_list = articles_to_post.to_dict('records')
+		articles_records_list = list(map(build_articles_record_for_request, articles_dict_list))
+		articles_data["records"] = articles_records_list
+		# Upsert to update where article is present based on pocket_id
+		articles_data["performUpsert"] = {}
+		articles_data["performUpsert"]["fieldsToMergeOn"] = ["Pocket_Id"]
+		articles_data["typecast"] = True
+		
+		airtable_service.patch_articles(articles_data)
+		i += 10
+		j += 10
+
+	return article_post_count

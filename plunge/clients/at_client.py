@@ -1,4 +1,5 @@
 from .base_client import BaseClient
+
 import constants as c
 
 class AirTableService(BaseClient):
@@ -6,12 +7,32 @@ class AirTableService(BaseClient):
         super().__init__(base_url, auth)
     
     
-    def get_pocket_latest_update_unix(self):
+    def get_latest_updates(self):
         res = self.get(
             "/v0/{base_id}/{table_id}".format(
                 base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
                 table_id = c.AIRTABLE_API_LATEST_UPDATE_TABLE_ID
             )
+        )
+        return res.json().get("records", [])
+    
+    def patch_articles(self, articles_json):
+        res = self.patch(
+            "/v0/{base_id}/{table_id}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_ALL_CONTENT_TABLE_ID
+            ),
+            json=articles_json
+        )
+        return res.json().get("records", [])
+    
+    def patch_latest_updates(self, updates_json):
+        res = self.patch(
+            "/v0/{base_id}/{table_id}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_API_LATEST_UPDATE_TABLE_ID
+            ),
+            json=updates_json
         )
         return res.json().get("records", [])
     

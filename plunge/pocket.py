@@ -175,7 +175,6 @@ def post_articles_to_airtable(article_count):
 	if article_count > 0:
 		articles_df = pd.read_csv(temp_csv_pocket_articles)
 		articles_df['Pocket_Id'] = articles_df['Pocket_Id'].astype(str)
-		#print(articles_df['Pocket_Id'])
 
 		print("Pocket articles being posted to Airtable: \n {} \n".format(articles_df[['Title']].to_string(index=True)))
 
@@ -384,6 +383,26 @@ def parse_youtube(row, article):
 		row['Yt_Duration'] = pd.Timedelta(video['contentDetails']['duration'])
 
 	return row
+
+
+def pocket_json_to_df(plunge_json):
+	article_count = 0
+	articles_list = []
+	# Parse responses based on content type and create Airtable rows
+	if len(plunge_json["list"]) > 0:
+		for key, article in plunge_json["list"].items():
+
+			row = build_pocket_content(article)
+
+			articles_list.append(row)
+			article_count += 1
+
+	# Populate Airtable dataframe
+	article_records_df = pd.DataFrame(articles_list)
+
+	# Write articles to csv
+	#article_records_df.to_csv(temp_csv_pocket_articles, mode='w', index=False, header=True)
+	return article_records_df
 
 
 

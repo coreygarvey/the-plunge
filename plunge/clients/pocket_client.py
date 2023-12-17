@@ -9,7 +9,7 @@ class PocketService(BaseClient):
             "X-Accept": "application/json"
         }
     
-    def get_plunge_articles(self):
+    def get_plunge_articles(self, since_time):
         res = self.post(
             "/v3/get",
             data = {
@@ -17,7 +17,7 @@ class PocketService(BaseClient):
                 "access_token": c.POCKET_ACCESS_TOKEN,
                 "tag": "plunge",
                 "detailType": "complete",
-                "since": c.POCKET_LATEST_UPDATED_UNIX,
+                "since": since_time,
                 "count": 200
             }
         )
