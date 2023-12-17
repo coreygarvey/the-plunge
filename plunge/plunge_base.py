@@ -3,27 +3,33 @@ from airtable import post_airtable_articles
 from truman import airtable_articles_to_truman
 from clients.at_client import AirTableService
 from clients.pocket_client import PocketService
+from clients.user_agent_client import UserAgentService
 import constants as c
 
+from bs4 import BeautifulSoup
+
 import time
+import os
 
 
 def main():
-
+	airtable_service = AirTableService(c.AIRTABLE_URL_BASE, c.AIRTABLE_ACCESS_TOKEN)
+	pocket_service = PocketService(c.POCKET_URL_BASE)
+	
 	# Pocket - tagged articles to Airtable
-	pocket_to_airtable()
+	pocket_to_airtable(airtable_service, pocket_service)
 
 	# AirTable Keepers - articles set to "Keep" with no Flurry
-	airtable_to_truman()
+	airtable_to_truman(airtable_service)
 
 	return
 
-def pocket_to_airtable():
+def pocket_to_airtable(airtable_service, pocket_service):
 	pocket_to_airtable_bool = input("Bring Pocket articles to Airtable (y/n)?\n")
 
 	if pocket_to_airtable_bool == 'y':
 		#pocket_articles_count = pocket_articles_to_airtable()
-		airtable_service = AirTableService(c.AIRTABLE_URL_BASE, c.AIRTABLE_ACCESS_TOKEN)
+		
 		latest_updates = airtable_service.get_latest_updates()
 		
 		latest_pocket_update = [x for x in latest_updates if x["fields"]["Api"] == "Pocket"][0]
@@ -33,7 +39,7 @@ def pocket_to_airtable():
 		
 		
 
-		pocket_service = PocketService(c.POCKET_URL_BASE)
+		
 		pocket_articles_json = pocket_service.get_plunge_articles(latest_pocket_update_unix)
 		
 		# Parse articles from JSON into dataframe with needed fields
@@ -60,40 +66,51 @@ def pocket_to_airtable():
 			
 			
 				print(patched_articles_count)
-		#print("Latest Pocket articles count: {}\n".format(pocket_articles_count))
 	return
 
 
-def airtable_to_truman():
+def airtable_to_truman(airtable_service):
 	airtable_to_truman_bool = input("Run Airtable Keepers through Truman (y/n)?\n")
 
 	if airtable_to_truman_bool == 'y':
-		#truman_articles_count = airtable_articles_to_truman()
-
-		airtable_service = AirTableService(c.AIRTABLE_URL_BASE, c.AIRTABLE_ACCESS_TOKEN)
 
 		keeper_no_flurry_articles = airtable_service.get_keepers_no_flurries(['Url'])
 		print(keeper_no_flurry_articles)
 
+		articles = []
+		for article in keeper_no_flurry_articles:
+			article_id = article['id']
+			article_url = article['fields']['Url']
+			articles.append((article_id, article_url))
+			user_agent_service = UserAgentService()
+			article_html = user_agent_service.get(article_url)
+			article_soup = BeautifulSoup(article_html.content, "lxml")
+			if article_url[-1] == '/':
+				article_url = article_url[:-1]
+			print("new_article_url: {}".format(article_url))
+			file_name = article_url.split('/')[-1].replace('.html', '')
+			file_path = "html/" + file_name + ".html"
+			print(file_path)
+			if not os.path.exists("html/"):
+				os.mkdir("html/")
+			
+			with open(file_path, "wb") as f:
+				f.write(article_soup.encode('utf-8'))
+		
+		'''
+		Organize all article URLs into list
+		For each URL:
+		- Get HTML from Requests
+		- Parse with BeautifulSoup
+		- Isolate Article Text, Title
+		'''
+
+
 		return keeper_no_flurry_articles
 
-		'''
-		at_keepers_no_flurries_url = at_url_base + at_base_id + "/" + at_all_content_table_id + "?view=" + at_keepers_no_flurries_view_id
-		headers = {'Authorization': 'Bearer {}'.format(at_token)}
-		try:
-			r = requests.get(at_keepers_no_flurries_url, headers=headers)
-		except requests.exceptions.RequestException as e:
-			raise SystemExit(e)
-		json_response = r.json()
-		articles = json_response["records"]
-		for article in articles:
-			print(article["fields"]["Url"])
-		#print(json.dumps(json_response, indent = 4))
-		return json_response
-		'''
-
-		#truman_articles_count = 1
-		print("Articles processed by Truman: {}\n".format(truman_articles_count))
+		
+		#print("Articles processed by Truman: {}\n".format(truman_articles_count))
+		
 	return
 
 
