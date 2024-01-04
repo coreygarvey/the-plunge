@@ -82,6 +82,9 @@ def airtable_to_truman():
 		
 		if not os.path.exists("parsed/"):
 			os.mkdir("parsed/")
+		
+		if not os.path.exists("summaries/"):
+			os.mkdir("summaries/")
 
 		articles = []
 		for article in keeper_no_flurry_articles[:1]:
@@ -109,7 +112,7 @@ def airtable_to_truman():
 			print(f"File: {openai_file}")
 			
 			# Create Thread
-			parse_thread = openai_service.beta.threads.create(
+			thread = openai_service.beta.threads.create(
 				messages=[
 					{
 					"role": "user",
@@ -118,49 +121,50 @@ def airtable_to_truman():
 					}
 				]
 			)
-			print(f"Parse Thread ID: {parse_thread.id}")
+			print(f"Parse Thread ID: {thread.id}")
 			# Run Thread
 			run = openai_service.beta.threads.runs.create(
-				thread_id=parse_thread.id,
+				thread_id=thread.id,
 				assistant_id=assistant_id,
 			)
 			print(f"Run ID: {run.id}")
 			
 			# Query Run to determine when complete
-			run = wait_for_run_completion(parse_thread.id, run.id)
+			run = wait_for_run_completion(thread.id, run.id)
 
 			if run.status == 'failed':
 				print(run.error)
 			
-			print_messages_from_thread(parse_thread.id)
+			print_messages_from_thread(thread.id)
 
 			# Store latest message file in external
 			parsed_file_path = "parsed/" + file_name + ".txt"
-			store_thread_files(parse_thread.id, parsed_file_path)
+			store_thread_files(thread.id, parsed_file_path)
 			
+			article_message = openai_service.beta.threads.messages.create(
+				thread_id=thread.id,
+				role="user",
+				content=msgs.create_article_message_basic
+			)
 
-			# Create New Thread
-			# Refer to newly created file
-			# Using the Article Text, create a summary
-			# Get ouptut message and file_id
-			# Donwload to summary/ article
-			# Create Airtable Flurry
-				# Linked to Article
-				# Title from parsed file
-				# Image URL from parsed file
-				# Notes from summary returned by OpenAI
-				# Push to Airtable
-		'''
-		Organize all article URLs into list
-		For each URL:
-		- Get HTML from Requests
-		- Parse with BeautifulSoup
-		- Store HTML as File
-		- Create File in OpenAI with File
-		- Create Assistant thread for file (Assistant already created), passing in OpenAI file
-		- Store the Title, Image URL, and Article Text in a file for download
-		- Download the file and save in /parsed/ on local machine
-		'''
+			run = openai_service.beta.threads.runs.create(
+				thread_id=thread.id,
+				assistant_id=assistant_id,
+			)
+
+			print(f"Run ID: {run.id}")
+			
+			# Query Run to determine when complete
+			run = wait_for_run_completion(thread.id, run.id)
+
+			if run.status == 'failed':
+				print(run.error)
+			
+			print_messages_from_thread(thread.id)
+
+			# Store latest message file in external
+			parsed_file_path = "summaries/" + file_name + ".txt"
+			store_thread_files(thread.id, parsed_file_path)
 
 
 		return keeper_no_flurry_articles
