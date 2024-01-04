@@ -14,6 +14,7 @@ import sys
 import time
 import os
 import json
+import shutil
 
 airtable_service = AirTableService(c.AIRTABLE_URL_BASE, c.AIRTABLE_ACCESS_TOKEN)
 pocket_service = PocketService(c.POCKET_URL_BASE)
@@ -78,37 +79,91 @@ def airtable_to_truman():
 		# Get all issues being built
 		issues_building = airtable_service.get_issues_building(['PublishDateString'])
 
-		# Select issue in the UI
-		for index, issue in enumerate(issues_building):
-			print("{}: {}".format(index, issue["fields"]["PublishDateString"]))
-		issue_input = input("Which issue?\n")
-		issue_input = issue_input.replace(" ", "")
-		try:
-			issue_input_int = int(issue_input)
-		except:
-			print("Invalid input")
-			sys.ext()
-		update_issue = issues_building[issue_input_int]
-		
-		#issue_input_list = issue_input.split(",")
-		# Handle invalid inputs
-		#try:
-		#	issue_input_list = [ int(x) for x in issue_input_list ]
-		#except:
-		#	print("Invalid input")
-		#	sys.exit()
-		#update_issue = [issues_building[i] for i in issue_input_list]
-
-		# Get Issue Record
-		print(update_issue)
-		record_id = update_issue["id"]
-		print(record_id)
-		issue = airtable_service.get_issue_record(record_id)
-		print(issue)
-		flurries = issue['fields']['Flurries']
-		print(flurries)
+		# Get all Flurries where Issue has status == Building
 		building_flurries = airtable_service.get_flurries_building()
-		print(building_flurries)
+		building_flurries_formatted_str = json.dumps(building_flurries, indent=4)
+		if not os.path.exists("scrap/"):
+			os.mkdir("scrap/")
+		building_flurries_file_path = "scrap/building_flurries.json"
+		with open(building_flurries_file_path, "w") as f:
+			f.write(building_flurries_formatted_str)
+		
+		# Directory for storing text files
+		if not os.path.exists("text_files/"):
+			os.mkdir("text_files/")
+		# Directory for storing AI generated summaries
+		if not os.path.exists("summaries/"):
+				os.mkdir("summaries/")
+
+		# For each Flurry: 
+		for flurry in building_flurries:
+			# Store text as files locally
+			flurry_id = flurry["id"]
+			flurry_fields = flurry["fields"]
+			flurry_text_file_paths = []
+			if "ArticleText" in flurry_fields:
+				article_text_file_path = "text_files/" + flurry_id + "-a.html"
+				article_text = flurry_fields["ArticleText"]
+				with open(article_text_file_path, "wb") as f:
+					f.write(article_text.encode('utf-8'))
+				flurry_text_file_paths.append(article_text_file_path)
+			if "JournalText" in flurry_fields:
+				journal_text_file_path = "text_files/" + flurry_id + "-j.html"
+				journal_text = flurry_fields["JournalText"]
+				with open(journal_text_file_path, "wb") as f:
+					f.write(journal_text.encode('utf-8'))
+				flurry_text_file_paths.append(journal_text_file_path)
+			
+			# OpenAI Actions
+			# Create OpenAI file(s)
+			open_ai_file_ids = []
+			for path in flurry_text_file_paths:
+				openai_file = openai_service.files.create(
+					file=open(path, "rb"),
+					purpose='assistants'
+				)
+				print(f"File: {openai_file}")
+				open_ai_file_ids.append(openai_file.id)
+
+			# Create Thread
+			thread = openai_service.beta.threads.create(
+				messages=[
+					{
+					"role": "user",
+					"content": msgs.create_article_message_basic,
+					"file_ids": open_ai_file_ids
+					}
+				]
+			)
+			print(f"Parse Thread ID: {thread.id}")
+			
+			# Run Thread
+			run = openai_service.beta.threads.runs.create(
+				thread_id=thread.id,
+				assistant_id=assistant_id,
+			)
+			print(f"Run ID: {run.id}")
+			
+			# Query Run to determine when complete
+			run = wait_for_run_completion(thread.id, run.id)
+
+			if run.status == 'failed':
+				print(run.error)
+			
+			print_messages_from_thread(thread.id)
+
+			# Store latest message file in external
+			summaries_file_path = "summaries/" + flurry_id + ".txt"
+			store_thread_files(thread.id, summaries_file_path)
+
+			
+		
+		
+		# Create thread with assistant that includes text files
+		# Run thread
+		# Wait for thread completion
+		# Store returned file locally
+		# Update Flurry notes with text from retrieved file
 		issue_choice_bool = input("Choose an issue (y/n)?\n")
 		if issue_choice_bool == 'y':	
 			keeper_no_flurry_articles = airtable_service.get_keepers_no_flurries(['Url'])
@@ -207,7 +262,7 @@ def airtable_to_truman():
 
 		
 		#print("Articles processed by Truman: {}\n".format(truman_articles_count))
-		
+	#remove_dir("scrap/")
 	return
 
 def wait_for_run_completion(thread_id, run_id):
@@ -241,6 +296,12 @@ def store_thread_files(thread_id, parsed_file_path):
 
 def obj_dict(obj):
     return obj.__dict__
+
+def remove_dir(directory):
+	try:
+		shutil.rmtree(directory)
+	except OSError as e:
+		print("Error: %s - %s." % (e.filename, e.strerror))
 
 if __name__ == "__main__":
 	main()

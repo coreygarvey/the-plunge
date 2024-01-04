@@ -13,7 +13,7 @@ Do not confirm whether the data is accurate. If there is no data, return a blank
 """
 
 create_article_message_basic = f"""
-You are an assistant helping me create a newsletter. Using the article text in the file provided, write a summary of the article that is 200 words or less. It should include descriptions of all research experiments that are mentioned in the article and lean toward scientific writing rather than conversational.
+You are an assistant helping me create a newsletter. Using the article text in the file(s) provided, write a summary of the article that is 150 words or less.
 Return the summary in a text file.
 """
 
