@@ -46,3 +46,34 @@ class AirTableService(BaseClient):
             )
         )
         return res.json().get("records", [])
+    
+    def get_issues_building(self, fields):
+        res = self.get(
+            "/v0/{base_id}/{table_id}?view={view_id}&fields%5B%5D={fields}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_ISSUES_TABLE_ID,
+                view_id = c.AIRTABLE_ISSUES_BUILDING_VIEW_ID,
+                fields='&fields%5B%5D='.join(fields)
+            )
+        )
+        return res.json().get("records", [])
+    
+    def get_flurries_building(self):
+        res = self.get(
+            "/v0/{base_id}/{table_id}?view={view_id}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_FLURRIES_TABLE_ID,
+                view_id = c.AIRTABLE_FLURRIES_BUILDING_VIEW_ID,
+            )
+        )
+        return res.json().get("records", [])
+    
+    def get_issue_record(self, record_id):
+        res = self.get(
+            "/v0/{base_id}/{table_id}/{record_id}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_ISSUES_TABLE_ID,
+                record_id = record_id
+            )
+        )
+        return res.json()

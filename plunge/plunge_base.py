@@ -10,6 +10,7 @@ import openai_messages as msgs
 from bs4 import BeautifulSoup
 import openai
 
+import sys
 import time
 import os
 import json
@@ -74,100 +75,135 @@ def airtable_to_truman():
 	airtable_to_truman_bool = input("Run Airtable Keepers through Truman (y/n)?\n")
 
 	if airtable_to_truman_bool == 'y':
+		# Get all issues being built
+		issues_building = airtable_service.get_issues_building(['PublishDateString'])
 
-		keeper_no_flurry_articles = airtable_service.get_keepers_no_flurries(['Url'])
-		print("keeper_no_flurry_articles: {}".format(keeper_no_flurry_articles))
-		if not os.path.exists("html/"):
-			os.mkdir("html/")
+		# Select issue in the UI
+		for index, issue in enumerate(issues_building):
+			print("{}: {}".format(index, issue["fields"]["PublishDateString"]))
+		issue_input = input("Which issue?\n")
+		issue_input = issue_input.replace(" ", "")
+		try:
+			issue_input_int = int(issue_input)
+		except:
+			print("Invalid input")
+			sys.ext()
+		update_issue = issues_building[issue_input_int]
 		
-		if not os.path.exists("parsed/"):
-			os.mkdir("parsed/")
-		
-		if not os.path.exists("summaries/"):
-			os.mkdir("summaries/")
+		#issue_input_list = issue_input.split(",")
+		# Handle invalid inputs
+		#try:
+		#	issue_input_list = [ int(x) for x in issue_input_list ]
+		#except:
+		#	print("Invalid input")
+		#	sys.exit()
+		#update_issue = [issues_building[i] for i in issue_input_list]
 
-		articles = []
-		for article in keeper_no_flurry_articles[:1]:
-			print(article)
-			article_id = article["id"]
-			article_url = article['fields']['Url']
-			articles.append((article_id, article_url))
-			user_agent_service = UserAgentService()
-			article_html = user_agent_service.get(article_url)
-			article_soup = BeautifulSoup(article_html.content, "lxml")
-			if article_url[-1] == '/':
-				article_url = article_url[:-1]
-			file_name = article_url.split('/')[-1].replace('.html', '')
-			html_file_path = "html/" + file_name + ".html"
+		# Get Issue Record
+		print(update_issue)
+		record_id = update_issue["id"]
+		print(record_id)
+		issue = airtable_service.get_issue_record(record_id)
+		print(issue)
+		flurries = issue['fields']['Flurries']
+		print(flurries)
+		building_flurries = airtable_service.get_flurries_building()
+		print(building_flurries)
+		issue_choice_bool = input("Choose an issue (y/n)?\n")
+		if issue_choice_bool == 'y':	
+			keeper_no_flurry_articles = airtable_service.get_keepers_no_flurries(['Url'])
+			print("keeper_no_flurry_articles: {}".format(keeper_no_flurry_articles))
+			if not os.path.exists("html/"):
+				os.mkdir("html/")
 			
-			with open(html_file_path, "wb") as f:
-				f.write(article_soup.encode('utf-8'))
-		
-			# OpenAI Actions
-			# Create OpenAI file
-			openai_file = openai_service.files.create(
-				file=open(html_file_path, "rb"),
-				purpose='assistants'
-			)
-			print(f"File: {openai_file}")
+			if not os.path.exists("parsed/"):
+				os.mkdir("parsed/")
 			
-			# Create Thread
-			thread = openai_service.beta.threads.create(
-				messages=[
-					{
-					"role": "user",
-					"content": msgs.parse_html_message,
-					"file_ids": [openai_file.id]
-					}
-				]
-			)
-			print(f"Parse Thread ID: {thread.id}")
-			# Run Thread
-			run = openai_service.beta.threads.runs.create(
-				thread_id=thread.id,
-				assistant_id=assistant_id,
-			)
-			print(f"Run ID: {run.id}")
+			if not os.path.exists("summaries/"):
+				os.mkdir("summaries/")
+
+			articles = []
+			for article in keeper_no_flurry_articles[:1]:
+				print(article)
+				article_id = article["id"]
+				article_url = article['fields']['Url']
+				articles.append((article_id, article_url))
+				user_agent_service = UserAgentService()
+				article_html = user_agent_service.get(article_url)
+				article_soup = BeautifulSoup(article_html.content, "lxml")
+				if article_url[-1] == '/':
+					article_url = article_url[:-1]
+				file_name = article_url.split('/')[-1].replace('.html', '')
+				html_file_path = "html/" + file_name + ".html"
+				
+				with open(html_file_path, "wb") as f:
+					f.write(article_soup.encode('utf-8'))
 			
-			# Query Run to determine when complete
-			run = wait_for_run_completion(thread.id, run.id)
+				# OpenAI Actions
+				# Create OpenAI file
+				openai_file = openai_service.files.create(
+					file=open(html_file_path, "rb"),
+					purpose='assistants'
+				)
+				print(f"File: {openai_file}")
+				
+				# Create Thread
+				thread = openai_service.beta.threads.create(
+					messages=[
+						{
+						"role": "user",
+						"content": msgs.parse_html_message,
+						"file_ids": [openai_file.id]
+						}
+					]
+				)
+				print(f"Parse Thread ID: {thread.id}")
+				# Run Thread
+				run = openai_service.beta.threads.runs.create(
+					thread_id=thread.id,
+					assistant_id=assistant_id,
+				)
+				print(f"Run ID: {run.id}")
+				
+				# Query Run to determine when complete
+				run = wait_for_run_completion(thread.id, run.id)
 
-			if run.status == 'failed':
-				print(run.error)
-			
-			print_messages_from_thread(thread.id)
+				if run.status == 'failed':
+					print(run.error)
+				
+				print_messages_from_thread(thread.id)
 
-			# Store latest message file in external
-			parsed_file_path = "parsed/" + file_name + ".txt"
-			store_thread_files(thread.id, parsed_file_path)
-			
-			article_message = openai_service.beta.threads.messages.create(
-				thread_id=thread.id,
-				role="user",
-				content=msgs.create_article_message_basic
-			)
+				# Store latest message file in external
+				parsed_file_path = "parsed/" + file_name + ".txt"
+				store_thread_files(thread.id, parsed_file_path)
+				
+				article_message = openai_service.beta.threads.messages.create(
+					thread_id=thread.id,
+					role="user",
+					content=msgs.create_article_message_basic
+				)
 
-			run = openai_service.beta.threads.runs.create(
-				thread_id=thread.id,
-				assistant_id=assistant_id,
-			)
+				run = openai_service.beta.threads.runs.create(
+					thread_id=thread.id,
+					assistant_id=assistant_id,
+				)
 
-			print(f"Run ID: {run.id}")
-			
-			# Query Run to determine when complete
-			run = wait_for_run_completion(thread.id, run.id)
+				print(f"Run ID: {run.id}")
+				
+				# Query Run to determine when complete
+				run = wait_for_run_completion(thread.id, run.id)
 
-			if run.status == 'failed':
-				print(run.error)
-			
-			print_messages_from_thread(thread.id)
+				if run.status == 'failed':
+					print(run.error)
+				
+				print_messages_from_thread(thread.id)
 
-			# Store latest message file in external
-			parsed_file_path = "summaries/" + file_name + ".txt"
-			store_thread_files(thread.id, parsed_file_path)
+				# Store latest message file in external
+				parsed_file_path = "summaries/" + file_name + ".txt"
+				store_thread_files(thread.id, parsed_file_path)
 
 
-		return keeper_no_flurry_articles
+			return keeper_no_flurry_articles
 
 		
 		#print("Articles processed by Truman: {}\n".format(truman_articles_count))
