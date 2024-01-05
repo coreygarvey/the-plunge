@@ -95,6 +95,9 @@ def airtable_to_truman():
 		if not os.path.exists("summaries/"):
 				os.mkdir("summaries/")
 
+		# Updated Flurry records to be patched to AT
+		flurries_with_notes = []
+
 		# For each Flurry: 
 		for flurry in building_flurries:
 			# Store text as files locally
@@ -156,6 +159,24 @@ def airtable_to_truman():
 			summaries_file_path = "summaries/" + flurry_id + ".txt"
 			store_thread_files(thread.id, summaries_file_path)
 
+			with open(summaries_file_path) as f:
+				flurry_summary = f.read()
+				print(f"flurry summary:{flurry_summary}")
+
+			flurry_with_notes_dict = {
+				"id": flurry_id,
+				"fields": {
+					"Notes": flurry_summary
+				}
+			}
+			flurries_with_notes.append(flurry_with_notes_dict)
+
+		# Update Flurries through call to AT Service
+		flurry_update = {}
+		flurry_update["records"] = flurries_with_notes
+		flurry_update["typecast"] = True
+		print(f"flurry_update \n {flurry_update}")
+		airtable_service.patch_flurries(flurry_update)
 			
 		
 		
@@ -167,6 +188,7 @@ def airtable_to_truman():
 		issue_choice_bool = input("Choose an issue (y/n)?\n")
 		if issue_choice_bool == 'y':	
 			keeper_no_flurry_articles = airtable_service.get_keepers_no_flurries(['Url'])
+			'''
 			print("keeper_no_flurry_articles: {}".format(keeper_no_flurry_articles))
 			if not os.path.exists("html/"):
 				os.mkdir("html/")
@@ -259,6 +281,8 @@ def airtable_to_truman():
 
 
 			return keeper_no_flurry_articles
+			'''
+			return
 
 		
 		#print("Articles processed by Truman: {}\n".format(truman_articles_count))

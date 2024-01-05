@@ -36,6 +36,16 @@ class AirTableService(BaseClient):
         )
         return res.json().get("records", [])
     
+    def patch_flurries(self, updates_json):
+        res = self.patch(
+            "/v0/{base_id}/{table_id}".format(
+                base_id = c.AIRTABLE_HIGH_PERFORMANCE_BASE_ID,
+                table_id = c.AIRTABLE_FLURRIES_TABLE_ID
+            ),
+            json=updates_json
+        )
+        return res.json().get("records", [])
+    
     def get_keepers_no_flurries(self, fields):
         res = self.get(
             "/v0/{base_id}/{table_id}?view={view_id}&fields%5B%5D={fields}".format(
